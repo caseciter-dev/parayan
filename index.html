@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Noteciter Dictionary Viewer</title>
+<style>
+  :root {
+    --bg: #e7d8ae;
+    --panel-bg: #ecdfb6;
+    --text: #3b2b18;
+    --muted: #7a6440;
+    --border: #b49b64;
+    --accent: #7a1f1f;
+    --accent-bg: #dcc588;
+    --content-bg: #f2e6c2;
+    --shadow: rgba(59, 43, 24, 0.35);
+    --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0.23  0 0 0 0 0.16  0 0 0 0 0.08  0 0 0 0.35 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+  html[data-theme="dark"] {
+    --bg: #17110a;
+    --panel-bg: #1f1710;
+    --text: #e6d2a0;
+    --muted: #a68c5c;
+    --border: #4a3a22;
+    --accent: #d6a54c;
+    --accent-bg: #372a15;
+    --content-bg: #211809;
+    --shadow: rgba(0, 0, 0, 0.6);
+    --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.5 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    height: 100%;
+    background-color: var(--bg);
+    background-image: var(--grain);
+    color: var(--text);
+    font-family: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, "Times New Roman", serif;
+  }
+  #app {
+    display: flex;
+    height: 100vh;
+    overflow: hidden;
+  }
+  #sidebar {
+    width: 290px;
+    min-width: 200px;
+    max-width: 480px;
+    flex-shrink: 0;
+    background-color: var(--panel-bg);
+    background-image: var(--grain);
+    border-right: 3px double var(--border);
+    box-shadow: 2px 0 10px var(--shadow) inset;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  #sidebar-header {
+    padding: 18px 16px 12px;
+    border-bottom: 3px double var(--border);
+  }
+  #sidebar-header h1 {
+    font-size: 17px;
+    margin: 0 0 12px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-align: center;
+    font-variant: small-caps;
+    color: var(--accent);
+    text-shadow: 0 1px 0 rgba(255,255,255,0.15);
+  }
+  #sidebar-header h1::before,
+  #sidebar-header h1::after {
+    content: "❦";
+    color: var(--muted);
+    font-size: 13px;
+    margin: 0 8px;
+    vertical-align: middle;
+  }
+  #search {
+    width: 100%;
+    padding: 8px 10px;
+    border-radius: 3px;
+    border: 1px solid var(--border);
+    background: var(--content-bg);
+    color: var(--text);
+    font-family: inherit;
+    font-size: 13px;
+    outline: none;
+  }
+  #search:focus { border-color: var(--accent); }
+  #entry-list {
+    list-style: none;
+    margin: 0;
+    padding: 8px;
+    overflow-y: auto;
+    flex: 1;
+  }
+  #entry-list li {
+    padding: 9px 11px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 14px;
+    color: var(--text);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    word-break: break-word;
+    border: 1px solid transparent;
+  }
+  #entry-list li:hover { background: var(--accent-bg); border-color: var(--border); }
+  #entry-list li.active {
+    background: var(--accent-bg);
+    color: var(--accent);
+    font-weight: 700;
+    border: 1px solid var(--border);
+  }
+  #entry-list li .size {
+    font-size: 10.5px;
+    color: var(--muted);
+    flex-shrink: 0;
+    font-weight: 400;
+    font-style: italic;
+  }
+  #entry-list li.active .size { color: var(--accent); opacity: 0.8; }
+  #main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  #toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 20px;
+    border-bottom: 3px double var(--border);
+    background-color: var(--panel-bg);
+    background-image: var(--grain);
+    flex-wrap: wrap;
+  }
+  #entry-title {
+    font-size: 15px;
+    font-weight: 700;
+    font-variant: small-caps;
+    letter-spacing: 0.3px;
+    color: var(--muted);
+    margin-right: auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .btn {
+    border: 1px solid var(--border);
+    background: var(--content-bg);
+    color: var(--text);
+    font-family: inherit;
+    border-radius: 3px;
+    padding: 6px 11px;
+    font-size: 13px;
+    font-variant: small-caps;
+    letter-spacing: 0.3px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    line-height: 1;
+    box-shadow: 0 1px 2px var(--shadow);
+  }
+  .btn:hover { border-color: var(--accent); color: var(--accent); }
+  .btn:active { transform: translateY(1px); box-shadow: none; }
+  #font-size-label {
+    font-size: 12px;
+    color: var(--muted);
+    min-width: 34px;
+    text-align: center;
+    font-style: italic;
+  }
+  #content-wrap {
+    flex: 1;
+    overflow: auto;
+    background-color: var(--bg);
+    background-image:
+      radial-gradient(ellipse at center, transparent 55%, var(--shadow) 140%),
+      var(--grain);
+    padding: 30px;
+  }
+  #content-frame {
+    width: 100%;
+    height: 100%;
+    border: none;
+    background: var(--content-bg);
+    border-radius: 4px;
+    box-shadow: 0 2px 14px var(--shadow), 0 0 0 1px var(--border);
+  }
+  #empty-state, #status-state {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: var(--muted);
+    font-size: 15px;
+    font-style: italic;
+    text-align: center;
+    padding: 0 20px;
+    white-space: pre-line;
+  }
+  #status-state.error { color: var(--accent); }
+  #mobile-toggle { display: none; }
+  @media (max-width: 720px) {
+    #sidebar {
+      position: fixed;
+      z-index: 10;
+      height: 100%;
+      transform: translateX(-100%);
+      transition: transform 0.2s ease;
+      box-shadow: 2px 0 12px var(--shadow);
+    }
+    #sidebar.open { transform: translateX(0); }
+    #mobile-toggle { display: flex; }
+    #content-wrap { padding: 14px; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <aside id="sidebar">
+    <div id="sidebar-header">
+      <h1>Noteciter Dictionary</h1>
+      <input id="search" type="text" placeholder="Filter entries…" autocomplete="off">
+    </div>
+    <ul id="entry-list"></ul>
+  </aside>
+  <main id="main">
+    <div id="toolbar">
+      <button class="btn" id="mobile-toggle" title="Toggle list">☰</button>
+      <div id="entry-title">Loading…</div>
+      <button class="btn" id="font-dec" title="Decrease font size">A−</button>
+      <span id="font-size-label">16px</span>
+      <button class="btn" id="font-inc" title="Increase font size">A+</button>
+      <button class="btn" id="theme-toggle" title="Toggle candlelight mode">🕯 Candlelit</button>
+    </div>
+    <div id="content-wrap">
+      <div id="status-state">Loading dictionary…</div>
+      <div id="empty-state" style="display:none;">Choose an entry from the list on the left.</div>
+      <iframe id="content-frame" style="display:none;"></iframe>
+    </div>
+  </main>
+</div>
+
+<script>
+(function () {
+  var DATA_URL = 'data.json';
+
+  var state = {
+    fontSize: parseInt(localStorage.getItem('nc_fontsize') || '16', 10),
+    theme: localStorage.getItem('nc_theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'),
+    active: null
+  };
+
+  var dict = {};
+  var keys = [];
+
+  var listEl = document.getElementById('entry-list');
+  var searchEl = document.getElementById('search');
+  var frame = document.getElementById('content-frame');
+  var emptyState = document.getElementById('empty-state');
+  var statusState = document.getElementById('status-state');
+  var titleEl = document.getElementById('entry-title');
+  var fontLabel = document.getElementById('font-size-label');
+  var sidebar = document.getElementById('sidebar');
+
+  function humanSize(n) {
+    if (n < 1024) return n + ' B';
+    if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
+    return (n / (1024 * 1024)).toFixed(1) + ' MB';
+  }
+
+  function renderList(filter) {
+    listEl.innerHTML = '';
+    var f = (filter || '').toLowerCase();
+    keys.forEach(function (k) {
+      if (f && k.toLowerCase().indexOf(f) === -1) return;
+      var li = document.createElement('li');
+      li.textContent = k;
+      if (k === state.active) li.classList.add('active');
+      var sizeSpan = document.createElement('span');
+      sizeSpan.className = 'size';
+      sizeSpan.textContent = humanSize(dict[k].length);
+      li.appendChild(sizeSpan);
+      li.addEventListener('click', function () { selectEntry(k); });
+      listEl.appendChild(li);
+    });
+  }
+
+  function applyTheme() {
+    document.documentElement.setAttribute('data-theme', state.theme);
+    document.getElementById('theme-toggle').textContent = state.theme === 'dark' ? '☀ Daylight' : '🕯 Candlelit';
+    renderFrame();
+  }
+
+  function applyFontSize() {
+    fontLabel.textContent = state.fontSize + 'px';
+    renderFrame();
+  }
+
+  function renderFrame() {
+    if (state.active === null) return;
+    var html = dict[state.active];
+    var isDark = state.theme === 'dark';
+    var bg = isDark ? '#211809' : '#f2e6c2';
+    var fg = isDark ? '#e6d2a0' : '#3b2b18';
+    var muted = isDark ? '#a68c5c' : '#7a6440';
+    var linkColor = isDark ? '#d6a54c' : '#7a1f1f';
+    var border = isDark ? '#4a3a22' : '#b49b64';
+    var grain = isDark
+      ? "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.5 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"
+      : "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0.23  0 0 0 0 0.16  0 0 0 0 0.08  0 0 0 0.35 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E";
+    var doc = '<!DOCTYPE html><html><head><meta charset="utf-8">' +
+      '<style>' +
+      'html,body{margin:0;padding:0;}' +
+      'body{background-color:' + bg + ';background-image:url("' + grain + '");color:' + fg + ';' +
+      'font-family:"Iowan Old Style","Palatino Linotype",Palatino,"Book Antiqua",Georgia,"Times New Roman",serif;' +
+      'font-size:' + state.fontSize + 'px;line-height:1.7;padding:36px 44px;word-wrap:break-word;}' +
+      'a{color:' + linkColor + ';text-decoration-color:' + border + ';}' +
+      'img{max-width:100%;height:auto;}' +
+      'table{border-collapse:collapse;max-width:100%;}' +
+      'pre{white-space:pre-wrap;word-break:break-word;}' +
+      'hr{border:none;border-top:2px double ' + border + ';margin:1.6em 0;}' +
+      '::selection{background:' + linkColor + ';color:' + bg + ';}' +
+      '</style></head><body>' + html + '</body></html>';
+    frame.srcdoc = doc;
+    frame.style.display = 'block';
+    emptyState.style.display = 'none';
+    statusState.style.display = 'none';
+  }
+
+  function selectEntry(k) {
+    state.active = k;
+    titleEl.textContent = k;
+    renderList(searchEl.value);
+    renderFrame();
+    sidebar.classList.remove('open');
+  }
+
+  document.getElementById('font-inc').addEventListener('click', function () {
+    state.fontSize = Math.min(state.fontSize + 2, 40);
+    localStorage.setItem('nc_fontsize', state.fontSize);
+    applyFontSize();
+  });
+  document.getElementById('font-dec').addEventListener('click', function () {
+    state.fontSize = Math.max(state.fontSize - 2, 10);
+    localStorage.setItem('nc_fontsize', state.fontSize);
+    applyFontSize();
+  });
+  document.getElementById('theme-toggle').addEventListener('click', function () {
+    state.theme = state.theme === 'dark' ? 'light' : 'dark';
+    localStorage.setItem('nc_theme', state.theme);
+    applyTheme();
+  });
+  document.getElementById('mobile-toggle').addEventListener('click', function () {
+    sidebar.classList.toggle('open');
+  });
+  searchEl.addEventListener('input', function () {
+    renderList(searchEl.value);
+  });
+
+  document.documentElement.setAttribute('data-theme', state.theme);
+  document.getElementById('theme-toggle').textContent = state.theme === 'dark' ? '☀️ Light' : '🌙 Dark';
+  fontLabel.textContent = state.fontSize + 'px';
+
+  fetch(DATA_URL)
+    .then(function (res) {
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      return res.json();
+    })
+    .then(function (data) {
+      dict = data;
+      keys = Object.keys(dict);
+      titleEl.textContent = 'Select an entry';
+      statusState.style.display = 'none';
+      emptyState.style.display = 'flex';
+      renderList('');
+      if (keys.length) selectEntry(keys[0]);
+    })
+    .catch(function (err) {
+      statusState.textContent = 'Could not load ' + DATA_URL + '.\n' + err.message +
+        '\n\nIf you opened this file directly (file://), browsers block local fetch() requests.\nServe it over http(s) instead — e.g. GitHub Pages, or run:\npython3 -m http.server';
+      statusState.classList.add('error');
+      titleEl.textContent = 'Load failed';
+    });
+})();
+</script>
+</body>
+</html>
