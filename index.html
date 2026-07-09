@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Noteciter Dictionary Viewer</title>
+<style>
+  :root {
+    --bg: #f7f7f5;
+    --panel-bg: #ffffff;
+    --text: #1f1f1f;
+    --muted: #6b6b6b;
+    --border: #e2e2e0;
+    --accent: #2563eb;
+    --accent-bg: #eaf0ff;
+    --content-bg: #ffffff;
+    --font-size: 16px;
+  }
+  html[data-theme="dark"] {
+    --bg: #17181a;
+    --panel-bg: #1f2023;
+    --text: #e8e8e6;
+    --muted: #9a9a97;
+    --border: #34353a;
+    --accent: #6ea8fe;
+    --accent-bg: #26314d;
+    --content-bg: #1b1c1e;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  }
+  #app {
+    display: flex;
+    height: 100vh;
+    overflow: hidden;
+  }
+  #sidebar {
+    width: 280px;
+    min-width: 200px;
+    max-width: 480px;
+    flex-shrink: 0;
+    background: var(--panel-bg);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  #sidebar-header {
+    padding: 14px 14px 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  #sidebar-header h1 {
+    font-size: 15px;
+    margin: 0 0 10px;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+  }
+  #search {
+    width: 100%;
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    font-size: 13px;
+    outline: none;
+  }
+  #search:focus { border-color: var(--accent); }
+  #entry-list {
+    list-style: none;
+    margin: 0;
+    padding: 6px;
+    overflow-y: auto;
+    flex: 1;
+  }
+  #entry-list li {
+    padding: 9px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 13.5px;
+    color: var(--text);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    word-break: break-word;
+  }
+  #entry-list li:hover { background: var(--bg); }
+  #entry-list li.active {
+    background: var(--accent-bg);
+    color: var(--accent);
+    font-weight: 600;
+  }
+  #entry-list li .size {
+    font-size: 10.5px;
+    color: var(--muted);
+    flex-shrink: 0;
+    font-weight: 400;
+  }
+  #entry-list li.active .size { color: var(--accent); opacity: 0.8; }
+  #main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  #toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 18px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel-bg);
+    flex-wrap: wrap;
+  }
+  #entry-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--muted);
+    margin-right: auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .btn {
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    border-radius: 7px;
+    padding: 6px 10px;
+    font-size: 13px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    line-height: 1;
+  }
+  .btn:hover { border-color: var(--accent); color: var(--accent); }
+  .btn:active { transform: translateY(1px); }
+  #font-size-label {
+    font-size: 12px;
+    color: var(--muted);
+    min-width: 34px;
+    text-align: center;
+  }
+  #content-wrap {
+    flex: 1;
+    overflow: auto;
+    background: var(--bg);
+    padding: 24px;
+  }
+  #content-frame {
+    width: 100%;
+    height: 100%;
+    border: none;
+    background: var(--content-bg);
+    border-radius: 10px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+  #empty-state, #status-state {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: var(--muted);
+    font-size: 14px;
+    text-align: center;
+    padding: 0 20px;
+    white-space: pre-line;
+  }
+  #status-state.error { color: #d33; }
+  #mobile-toggle { display: none; }
+  @media (max-width: 720px) {
+    #sidebar {
+      position: fixed;
+      z-index: 10;
+      height: 100%;
+      transform: translateX(-100%);
+      transition: transform 0.2s ease;
+      box-shadow: 2px 0 12px rgba(0,0,0,0.15);
+    }
+    #sidebar.open { transform: translateX(0); }
+    #mobile-toggle { display: flex; }
+    #content-wrap { padding: 12px; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <aside id="sidebar">
+    <div id="sidebar-header">
+      <h1>Noteciter Dictionary</h1>
+      <input id="search" type="text" placeholder="Filter entries…" autocomplete="off">
+    </div>
+    <ul id="entry-list"></ul>
+  </aside>
+  <main id="main">
+    <div id="toolbar">
+      <button class="btn" id="mobile-toggle" title="Toggle list">☰</button>
+      <div id="entry-title">Loading…</div>
+      <button class="btn" id="font-dec" title="Decrease font size">A−</button>
+      <span id="font-size-label">16px</span>
+      <button class="btn" id="font-inc" title="Increase font size">A+</button>
+      <button class="btn" id="theme-toggle" title="Toggle dark mode">🌙 Dark</button>
+    </div>
+    <div id="content-wrap">
+      <div id="status-state">Loading dictionary…</div>
+      <div id="empty-state" style="display:none;">Choose an entry from the list on the left.</div>
+      <iframe id="content-frame" style="display:none;"></iframe>
+    </div>
+  </main>
+</div>
+
+<script>
+(function () {
+  var DATA_URL = 'data.json';
+
+  var state = {
+    fontSize: parseInt(localStorage.getItem('nc_fontsize') || '16', 10),
+    theme: localStorage.getItem('nc_theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'),
+    active: null
+  };
+
+  var dict = {};
+  var keys = [];
+
+  var listEl = document.getElementById('entry-list');
+  var searchEl = document.getElementById('search');
+  var frame = document.getElementById('content-frame');
+  var emptyState = document.getElementById('empty-state');
+  var statusState = document.getElementById('status-state');
+  var titleEl = document.getElementById('entry-title');
+  var fontLabel = document.getElementById('font-size-label');
+  var sidebar = document.getElementById('sidebar');
+
+  function humanSize(n) {
+    if (n < 1024) return n + ' B';
+    if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
+    return (n / (1024 * 1024)).toFixed(1) + ' MB';
+  }
+
+  function renderList(filter) {
+    listEl.innerHTML = '';
+    var f = (filter || '').toLowerCase();
+    keys.forEach(function (k) {
+      if (f && k.toLowerCase().indexOf(f) === -1) return;
+      var li = document.createElement('li');
+      li.textContent = k;
+      if (k === state.active) li.classList.add('active');
+      var sizeSpan = document.createElement('span');
+      sizeSpan.className = 'size';
+      sizeSpan.textContent = humanSize(dict[k].length);
+      li.appendChild(sizeSpan);
+      li.addEventListener('click', function () { selectEntry(k); });
+      listEl.appendChild(li);
+    });
+  }
+
+  function applyTheme() {
+    document.documentElement.setAttribute('data-theme', state.theme);
+    document.getElementById('theme-toggle').textContent = state.theme === 'dark' ? '☀️ Light' : '🌙 Dark';
+    renderFrame();
+  }
+
+  function applyFontSize() {
+    fontLabel.textContent = state.fontSize + 'px';
+    renderFrame();
+  }
+
+  function renderFrame() {
+    if (state.active === null) return;
+    var html = dict[state.active];
+    var isDark = state.theme === 'dark';
+    var bg = isDark ? '#1b1c1e' : '#ffffff';
+    var fg = isDark ? '#e8e8e6' : '#1f1f1f';
+    var linkColor = isDark ? '#6ea8fe' : '#2563eb';
+    var doc = '<!DOCTYPE html><html><head><meta charset="utf-8">' +
+      '<style>' +
+      'html,body{margin:0;padding:0;}' +
+      'body{background:' + bg + ';color:' + fg + ';font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;' +
+      'font-size:' + state.fontSize + 'px;line-height:1.6;padding:28px 32px;word-wrap:break-word;}' +
+      'a{color:' + linkColor + ';}' +
+      'img{max-width:100%;height:auto;}' +
+      'table{border-collapse:collapse;max-width:100%;}' +
+      'pre{white-space:pre-wrap;word-break:break-word;}' +
+      '</style></head><body>' + html + '</body></html>';
+    frame.srcdoc = doc;
+    frame.style.display = 'block';
+    emptyState.style.display = 'none';
+    statusState.style.display = 'none';
+  }
+
+  function selectEntry(k) {
+    state.active = k;
+    titleEl.textContent = k;
+    renderList(searchEl.value);
+    renderFrame();
+    sidebar.classList.remove('open');
+  }
+
+  document.getElementById('font-inc').addEventListener('click', function () {
+    state.fontSize = Math.min(state.fontSize + 2, 40);
+    localStorage.setItem('nc_fontsize', state.fontSize);
+    applyFontSize();
+  });
+  document.getElementById('font-dec').addEventListener('click', function () {
+    state.fontSize = Math.max(state.fontSize - 2, 10);
+    localStorage.setItem('nc_fontsize', state.fontSize);
+    applyFontSize();
+  });
+  document.getElementById('theme-toggle').addEventListener('click', function () {
+    state.theme = state.theme === 'dark' ? 'light' : 'dark';
+    localStorage.setItem('nc_theme', state.theme);
+    applyTheme();
+  });
+  document.getElementById('mobile-toggle').addEventListener('click', function () {
+    sidebar.classList.toggle('open');
+  });
+  searchEl.addEventListener('input', function () {
+    renderList(searchEl.value);
+  });
+
+  document.documentElement.setAttribute('data-theme', state.theme);
+  document.getElementById('theme-toggle').textContent = state.theme === 'dark' ? '☀️ Light' : '🌙 Dark';
+  fontLabel.textContent = state.fontSize + 'px';
+
+  fetch(DATA_URL)
+    .then(function (res) {
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      return res.json();
+    })
+    .then(function (data) {
+      dict = data;
+      keys = Object.keys(dict);
+      titleEl.textContent = 'Select an entry';
+      statusState.style.display = 'none';
+      emptyState.style.display = 'flex';
+      renderList('');
+      if (keys.length) selectEntry(keys[0]);
+    })
+    .catch(function (err) {
+      statusState.textContent = 'Could not load ' + DATA_URL + '.\n' + err.message +
+        '\n\nIf you opened this file directly (file://), browsers block local fetch() requests.\nServe it over http(s) instead — e.g. GitHub Pages, or run:\npython3 -m http.server';
+      statusState.classList.add('error');
+      titleEl.textContent = 'Load failed';
+    });
+})();
+</script>
+</body>
+</html>
